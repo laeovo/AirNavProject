@@ -58,15 +58,15 @@ def ecefToEnu(ecef, originEcef):
 # enu to ecef, given origin (ecef)
 def enuToEcef(enu, originEcef):
     originLlh = ecefToLlh(originEcef)
-    rotationLon = np.array([[math.cos(degToRad(originLlh[1])), -math.sin(degToRad(originLlh[1])), 0],
-                            [math.sin(degToRad(originLlh[1])), math.cos(degToRad(originLlh[1])), 0],
-                            [0, 0, 1]])
-    rotationLat = np.array([[math.cos(degToRad(originLlh[0])), 0, -math.sin(degToRad(originLlh[0]))],
-                            [0, 1, 0],
-                            [math.sin(degToRad(originLlh[0])), 0, math.cos(degToRad(originLlh[0]))]])
     rotationCoordinates = np.array([[0, 0, 1],
                                     [1, 0, 0],
                                     [0, 1, 0]])
+    rotationLat = np.array([[math.cos(degToRad(originLlh[0])), 0, -math.sin(degToRad(originLlh[0]))],
+                            [0, 1, 0],
+                            [math.sin(degToRad(originLlh[0])), 0, math.cos(degToRad(originLlh[0]))]])
+    rotationLon = np.array([[math.cos(degToRad(originLlh[1])), -math.sin(degToRad(originLlh[1])), 0],
+                            [math.sin(degToRad(originLlh[1])), math.cos(degToRad(originLlh[1])), 0],
+                            [0, 0, 1]])
     return originEcef+rotationLon@rotationLat@rotationCoordinates@enu
 
 # distance between two coords given in ecef (m)
@@ -134,6 +134,6 @@ plt.set_cmap("RdYlGn")
 plt.colorbar()
 
 # plot DMEs
-plt.scatter(data[:,3], data[:,2], marker="x")
+plt.scatter(data[:, 3], data[:, 2], marker="x")
 
 plt.show()
