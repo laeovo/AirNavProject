@@ -114,6 +114,7 @@ for i in range(gridLon.shape[0]):
         for row in range(len(data)):
             dmeLlh = np.array([data[row, 2], data[row, 3], 0])
             dmeRange = computeDmeRange(data[row, 4])
+            # check if DME signal is received by user
             if distanceLlh(userLlh, dmeLlh) <= dmeRange:
                 values[i, j] += 1 / distanceLlh(userLlh, dmeLlh)
 # values = np.random.uniform(0, 1, gridLon.shape)
