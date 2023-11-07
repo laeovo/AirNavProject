@@ -1,6 +1,8 @@
 import numpy as np
 import math
 from matplotlib import pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 earthRadius = 6371000 # meters
 
@@ -9,6 +11,9 @@ def metersToMiles(lengthInMeters):
 
 def milesToMeters(lengthInMiles):
     return lengthInMiles * 1852.0
+
+def feetToMeters(feet):
+    return feet * 0.3048
 
 def degToRad(deg):
     return deg / 180.0 * math.pi
@@ -71,26 +76,63 @@ def distanceEcef(a, b):
                      (a[2] - b[2]) * (a[2] - b[2]))
 
 # distance between two coords given in lat/lon/height (deg, m amsl) in m
-def distanceLatLonHeight(a, b):
+def distanceLlh(a, b):
     aEcef = llhToEcef(a)
     bEcef = llhToEcef(b)
     return distanceEcef(aEcef, bEcef)
 
 # compute range (m) of a DME, given its EIRP (dBW)
-def dmeRange(eirp):
+def computeDmeRange(eirp):
     if eirp >= 30: return milesToMeters(100)
     else: return milesToMeters(50)
 
 
-
+# get the data
 data = np.loadtxt("dme.dat")
 
 # country of choice: Czech republic (9)
-northEnd = 50 # 49.609593° N
+northEnd = 52 # 51.052915° N
 eastEnd = 19 # 18.864830° E
 southEnd = 48 # 48.551768° N
 westEnd = 12 # 12.091046° E
 
-gridCoordinatesLat = np.linspace(math.floor(southEnd), math.floor(northEnd), (northEnd-southEnd)*20)
-gridCoordinatesLon = np.linspace(math.floor(westEnd), math.floor(eastEnd), (eastEnd-westEnd)*20)
+# initialize grid
+gridSize = 0.05
+gridCoordinatesLat = np.arange(southEnd, northEnd, gridSize)
+gridCoordinatesLon = np.arange(westEnd, eastEnd, gridSize)
 gridLon, gridLat = np.meshgrid(gridCoordinatesLon, gridCoordinatesLat)
+values = np.zeros(gridLon.shape)
+
+# loop through grid points
+for i in range(gridLon.shape[0]):
+    print("progress:", i+1, "/", gridLon.shape[0])
+    for j in range(gridLon.shape[1]):
+        lat = gridLat[i, j]
+        lon = gridLon[i, j]
+        userLlh = np.array([lat, lon, feetToMeters(10000)])
+        # loop through DMEs in data list
+        for row in range(len(data)):
+            dmeLlh = np.array([data[row, 2], data[row, 3], 0])
+            dmeRange = computeDmeRange(data[row, 4])
+            if distanceLlh(userLlh, dmeLlh) <= dmeRange:
+                values[i, j] += 1 / distanceLlh(userLlh, dmeLlh)
+# values = np.random.uniform(0, 1, gridLon.shape)
+
+# prepare the plot
+fig = plt.figure()
+ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+ax.set_extent([westEnd, eastEnd, southEnd, northEnd], crs=ccrs.PlateCarree())
+
+# draw europe
+ax.add_feature(cfeature.COASTLINE)
+ax.add_feature(cfeature.BORDERS)
+
+# plot the colored graph to show expected position accuracy
+plt.scatter(gridLon, gridLat, s=2, c=values)
+plt.set_cmap("RdYlGn")
+plt.colorbar()
+
+# plot DMEs
+plt.scatter(data[:,3], data[:,2], marker="x")
+
+plt.show()
