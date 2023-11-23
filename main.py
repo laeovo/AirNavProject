@@ -4,8 +4,6 @@ from matplotlib import pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
-earthRadius = 6371000 # meters
-
 def metersToMiles(lengthInMeters):
     return lengthInMeters / 1852.0
 
@@ -20,6 +18,10 @@ def degToRad(deg):
 
 def radToDeg(rad):
     return rad / math.pi * 180.0
+
+earthRadius = 6371000 # meters
+DME_performance = milesToMeters(0.1)
+altimeter_performance = feetToMeters(50)
 
 # lat/lon/height (deg, m amsl) to ecef (m)
 def llhToEcef(llh):
@@ -97,7 +99,7 @@ southEnd = 48 # 48.551768° N
 westEnd = 12 # 12.091046° E
 
 # initialize grid
-gridSize = 0.05
+gridSize = 0.5
 gridCoordinatesLat = np.arange(southEnd, northEnd, gridSize)
 gridCoordinatesLon = np.arange(westEnd, eastEnd, gridSize)
 gridLon, gridLat = np.meshgrid(gridCoordinatesLon, gridCoordinatesLat)
@@ -110,13 +112,57 @@ for i in range(gridLon.shape[0]):
         lat = gridLat[i, j]
         lon = gridLon[i, j]
         userLlh = np.array([lat, lon, feetToMeters(10000)])
+        userEcef = llhToEcef(userLlh)
+        availableDMEs = np.array([])
         # loop through DMEs in data list
         for row in range(len(data)):
             dmeLlh = np.array([data[row, 2], data[row, 3], 0])
+            dmeEcef = llhToEcef(dmeLlh)
+            dmeENU = ecefToEnu(dmeEcef, userEcef)
             dmeRange = computeDmeRange(data[row, 4])
             # check if DME signal is received by user
             if distanceLlh(userLlh, dmeLlh) <= dmeRange:
-                values[i, j] += 1 / distanceLlh(userLlh, dmeLlh)
+                if len(availableDMEs) == 0: availableDMEs = dmeENU
+                else: availableDMEs = np.concatenate((availableDMEs, dmeENU), axis=0)
+        # compute HDOP
+        # step 0: initial guess
+        x_hat = llhToEcef(userLlh)
+
+        x_error = 1
+        while x_error > 1e-6:
+            # step 1: compute estimated range measurement
+            z_est = np.zeros((availableDMEs.shape[0]+1, 1))
+            for dme_index in range(availableDMEs.shape[0]):
+                z_est[dme_index] = distanceEcef([0, 0, 0], availableDMEs[dme_index])
+            z_est[-1] = feetToMeters(10000)
+
+            # step 2.0 get measurements
+            z = z_est
+            for est_index in range(len(z_est)-1):
+                z[est_index] += np.random.normal(0, DME_performance, 1)
+            z[-1] += np.random.normal(0, altimeter_performance, 1)
+
+            # step 2.1: compute estimated error
+            z_error = z - z_est
+
+            # step 3: set up H matrix
+            H = np.zeros((len(z), 3))
+            for dme_measurement in range(H.shape[0]-1):
+                for dim in range(3):
+                    H[dme_measurement, dim] = (x_hat[dim] - availableDMEs[dme_measurement, dim]) / distanceEcef([0, 0, 0], availableDMEs[dme_measurement])
+            H[-1,:] = [0, 0, 1]
+
+            # step 4: compute least squares
+            x_hat_error = np.linalg.inv(H.T@H)@H.T@z_error
+
+            # step 5: update position estimate
+            x_hat += x_hat_error
+
+
+
+
+
+
 # values = np.random.uniform(0, 1, gridLon.shape)
 
 # prepare the plot
