@@ -130,10 +130,11 @@ for i in range(gridLon.shape[0]):
             for dim in range(3):
                 H[dme_measurement, dim] = availableDMEs[dme_measurement, dim] / distanceEcef([0, 0, 0], availableDMEs[dme_measurement])
         H[-1, :] = [0, 0, 1]
-        # print("H:", H)
+        print("H:", H)
         G = np.linalg.inv(H.T@H)
         HDOP = math.sqrt(G[0, 0] + G[1, 1])
         values[i, j] = HDOP
+        print(HDOP)
 
 
 
