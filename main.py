@@ -99,7 +99,7 @@ southEnd = 48 # 48.551768° N
 westEnd = 12 # 12.091046° E
 
 # initialize grid
-gridSize = 0.2
+gridSize = 0.01
 gridCoordinatesLat = np.arange(southEnd, northEnd, gridSize)
 gridCoordinatesLon = np.arange(westEnd, eastEnd, gridSize)
 gridLon, gridLat = np.meshgrid(gridCoordinatesLon, gridCoordinatesLat)
@@ -124,17 +124,18 @@ for i in range(gridLon.shape[0]):
             if distanceLlh(userLlh, dmeLlh) <= dmeRange:
                 if len(availableDMEs) == 0: availableDMEs = np.array([dmeENU])
                 else: availableDMEs = np.concatenate((availableDMEs, np.array([dmeENU])), axis=0)
+
         # compute HDOP
         H = np.zeros((len(availableDMEs)+1, 3))
         for dme_measurement in range(H.shape[0]-1):
             for dim in range(3):
                 H[dme_measurement, dim] = availableDMEs[dme_measurement, dim] / distanceEcef([0, 0, 0], availableDMEs[dme_measurement])
         H[-1, :] = [0, 0, 1]
-        print("H:", H)
+        # print("H:", H)
         G = np.linalg.inv(H.T@H)
         HDOP = math.sqrt(G[0, 0] + G[1, 1])
         values[i, j] = HDOP
-        print(HDOP)
+        # print(HDOP)
 
 
 
