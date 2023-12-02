@@ -20,8 +20,8 @@ def radToDeg(rad):
     return rad / math.pi * 180.0
 
 earthRadius = 6371000 # meters
-DME_performance = milesToMeters(0.1)
-altimeter_performance = feetToMeters(50)
+sigma_dme = milesToMeters(0.2)/2
+sigma_altimeter = feetToMeters(100) / 2
 
 # lat/lon/height (deg, m amsl) to ecef (m)
 def llhToEcef(llh):
@@ -130,9 +130,12 @@ for i in range(gridLon.shape[0]):
         for dme_measurement in range(H.shape[0]-1):
             for dim in range(3):
                 H[dme_measurement, dim] = availableDMEs[dme_measurement, dim] / distanceEcef([0, 0, 0], availableDMEs[dme_measurement])
-        H[-1, :] = [0, 0, 1]
-        # print("H:", H)
-        G = np.linalg.inv(H.T@H)
+        H[-1, :] = [0, 0, -1]
+
+        covRho = np.diag(np.concatenate((np.repeat(sigma_dme*sigma_dme, len(availableDMEs)), [sigma_altimeter*sigma_altimeter])))
+        G = np.linalg.inv(H.T@H)@H.T@covRho@H@np.linalg.inv(H.T@H).T # TODO that is not G! How to obtain G?
+        print(G)
+
         HDOP = math.sqrt(G[0, 0] + G[1, 1])
         values[i, j] = HDOP
         # print(HDOP)
