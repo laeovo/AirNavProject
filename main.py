@@ -20,8 +20,8 @@ def radToDeg(rad):
     return rad / math.pi * 180.0
 
 earthRadius = 6371000 # meters
-sigma_dme = milesToMeters(0.2)/2
-sigma_altimeter = feetToMeters(100) / 2
+sigma_dme = milesToMeters(0.2)/2 # two sigmas (95%) would be 0.2 NM
+sigma_altimeter = feetToMeters(100) / 2 # two sigmas (95%) would be 100 ft
 
 # lat/lon/height (deg, m amsl) to ecef (m)
 def llhToEcef(llh):
