@@ -91,6 +91,7 @@ def computeDmeRange(eirp):
 
 # get the data
 data = np.loadtxt("dme.dat")
+allDMEsCounter = len(data)
 
 # country of choice: Czech republic (9)
 northEnd = 52 # 51.052915° N
@@ -104,6 +105,42 @@ gridCoordinatesLat = np.arange(southEnd, northEnd, gridSize)
 gridCoordinatesLon = np.arange(westEnd, eastEnd, gridSize)
 gridLon, gridLat = np.meshgrid(gridCoordinatesLon, gridCoordinatesLat)
 values = np.zeros(gridLon.shape)
+
+# remove DMEs that are irrelevant for this study (i.e. outside the area of interest)
+deleteCounter = 0
+# first delete all DMEs whose coordinates are obviously outside the area of interest
+for row in np.arange(len(data)-1, 0, -1):
+    DMELat = data[row, 2]
+    DMELon = data[row, 3]
+    # earth's circumference at the northernmost point of Europe (ca. 70° latitude) is 13,680 km.
+    # 1° of longitude corresponds to 38 km
+    # the strongest DMEs have a range of 100 NM (185.2 km), which equates to maximum 4.87° of longitude.
+    # let's drop all DMEs that lie 5° or greater outside the area of interest in at least one direction
+    threshold = 5
+    if DMELat >= northEnd + threshold or DMELon >= eastEnd + threshold or DMELat <= southEnd - threshold or DMELon <= westEnd - threshold:
+        data = np.delete(data, row, 0)
+        deleteCounter += 1
+# now check for each DME if it is received at at least one gridpoint
+for row in np.arange(len(data)-1, 0, -1):
+    dmeReceived = False
+    dmeLlh = np.array([data[row, 2], data[row, 3], 0])
+    dmeEcef = llhToEcef(dmeLlh)
+    dmeRange = computeDmeRange(data[row, 4])
+    print(row)
+    for i in range(gridLon.shape[0]):
+        for j in range(gridLon.shape[1]):
+            lat = gridLat[i, j]
+            lon = gridLon[i, j]
+            userLlh = np.array([lat, lon, feetToMeters(10000)])
+            userEcef = llhToEcef(userLlh)
+            if distanceEcef(dmeEcef, userEcef) <= dmeRange:
+                dmeReceived = True
+                break
+        if dmeReceived: break
+    if not dmeReceived:
+        data = np.delete(data, row, 0)
+        deleteCounter += 1
+print("Removed", deleteCounter, "DMEs (previously", allDMEsCounter, "DMEs) from list because they are too far from the area of interest.")
 
 # loop through grid points
 for i in range(gridLon.shape[0]):
@@ -133,10 +170,9 @@ for i in range(gridLon.shape[0]):
         H[-1, :] = [0, 0, -1]
 
         covRho = np.diag(np.concatenate((np.repeat(sigma_dme*sigma_dme, len(availableDMEs)), [sigma_altimeter*sigma_altimeter])))
-        G = np.linalg.inv(H.T@H)@H.T@covRho@H@np.linalg.inv(H.T@H).T # TODO that is not G! How to obtain G?
-        print(G)
+        G = np.linalg.inv(H.T@H)@H.T@covRho@H@np.linalg.inv(H.T@H).T
 
-        HDOP = math.sqrt(G[0, 0] + G[1, 1])
+        HDOP = math.sqrt(G[0, 0]/(sigma_dme*sigma_dme) + G[1, 1]/(sigma_dme*sigma_dme))
         values[i, j] = HDOP
         # print(HDOP)
 
