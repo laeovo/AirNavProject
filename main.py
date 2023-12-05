@@ -191,8 +191,7 @@ ax.add_feature(cfeature.COASTLINE)
 ax.add_feature(cfeature.BORDERS)
 
 # plot the colored graph to show expected position accuracy
-plt.scatter(gridLon, gridLat, s=2, c=values)
-plt.set_cmap("RdYlGn")
+plt.pcolormesh(gridLon, gridLat, values, cmap="RdYlGn_r")
 plt.colorbar()
 
 # plot DMEs
