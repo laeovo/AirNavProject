@@ -162,19 +162,24 @@ for i in range(gridLon.shape[0]):
                 if len(availableDMEs) == 0: availableDMEs = np.array([dmeENU])
                 else: availableDMEs = np.concatenate((availableDMEs, np.array([dmeENU])), axis=0)
 
-        # compute HDOP
-        H = np.zeros((len(availableDMEs)+1, 3))
-        for dme_measurement in range(H.shape[0]-1):
-            for dim in range(3):
-                H[dme_measurement, dim] = availableDMEs[dme_measurement, dim] / distanceEcef([0, 0, 0], availableDMEs[dme_measurement])
-        H[-1, :] = [0, 0, -1]
+        if len(availableDMEs) >= 2:
+            # compute HDOP
+            H = np.zeros((len(availableDMEs)+1, 3))
+            for dme_measurement in range(H.shape[0]-1):
+                for dim in range(3):
+                    H[dme_measurement, dim] = availableDMEs[dme_measurement, dim] / distanceEcef([0, 0, 0], availableDMEs[dme_measurement])
+            H[-1, :] = [0, 0, -1] # TODO: leave this one out
 
-        covRho = np.diag(np.concatenate((np.repeat(sigma_dme*sigma_dme, len(availableDMEs)), [sigma_altimeter*sigma_altimeter])))
-        G = np.linalg.inv(H.T@H)@H.T@covRho@H@np.linalg.inv(H.T@H).T
+            covRho = np.diag(np.concatenate((np.repeat(sigma_dme*sigma_dme, len(availableDMEs)), [sigma_altimeter*sigma_altimeter])))
+            G = np.linalg.inv(H.T@H)@H.T@covRho@H@np.linalg.inv(H.T@H).T
 
-        HDOP = math.sqrt(G[0, 0]/(sigma_dme*sigma_dme) + G[1, 1]/(sigma_dme*sigma_dme))
-        values[i, j] = HDOP
-        # print(HDOP)
+            HDOP = math.sqrt(G[0, 0]/(sigma_dme*sigma_dme) + G[1, 1]/(sigma_dme*sigma_dme))
+            values[i, j] = HDOP
+            # print(HDOP)
+
+        else:
+            # not enough DMEs received, report HDOP as 'not a number'
+            values[i, j] = np.nan
 
 
 
