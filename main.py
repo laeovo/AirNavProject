@@ -121,6 +121,7 @@ for row in np.arange(len(data)-1, 0, -1):
     if DMELat >= northEnd + threshold or DMELon >= eastEnd + threshold or DMELat <= southEnd - threshold or DMELon <= westEnd - threshold:
         data = np.delete(data, row, 0)
         deleteCounter += 1
+
 # now check for each DME if it is received at at least one gridpoint
 print("Preprocessing: discarding all DMEs outside area of interest")
 nrDMEsAfterFirstPreprocessing = len(data)
