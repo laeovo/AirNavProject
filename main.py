@@ -91,6 +91,7 @@ def computeDmeRange(eirp):
 
 # get the data
 data = np.loadtxt("dme.dat")
+data = np.unique(data, axis=0) # remove duplicates
 allDMEsCounter = len(data)
 
 # country of choice: Czech republic (9)
@@ -100,7 +101,7 @@ southEnd = 48 # 48.551768° N
 westEnd = 12 # 12.091046° E
 
 # initialize grid
-gridSize = 0.01
+gridSize = 0.05
 gridCoordinatesLat = np.arange(southEnd, northEnd, gridSize)
 gridCoordinatesLon = np.arange(westEnd, eastEnd, gridSize)
 gridLon, gridLat = np.meshgrid(gridCoordinatesLon, gridCoordinatesLat)
@@ -121,12 +122,16 @@ for row in np.arange(len(data)-1, 0, -1):
         data = np.delete(data, row, 0)
         deleteCounter += 1
 # now check for each DME if it is received at at least one gridpoint
+print("Preprocessing: discarding all DMEs outside area of interest")
+nrDMEsAfterFirstPreprocessing = len(data)
 for row in np.arange(len(data)-1, 0, -1):
+    progress = nrDMEsAfterFirstPreprocessing - row
+    if progress % 10 == 0:
+        print("Progress:", progress,"/", nrDMEsAfterFirstPreprocessing)
     dmeReceived = False
     dmeLlh = np.array([data[row, 2], data[row, 3], 0])
     dmeEcef = llhToEcef(dmeLlh)
     dmeRange = computeDmeRange(data[row, 4])
-    print(row)
     for i in range(gridLon.shape[0]):
         for j in range(gridLon.shape[1]):
             lat = gridLat[i, j]
@@ -143,6 +148,8 @@ for row in np.arange(len(data)-1, 0, -1):
 print("Removed", deleteCounter, "DMEs (previously", allDMEsCounter, "DMEs) from list because they are too far from the area of interest.")
 
 # loop through grid points
+print()
+print("Now computing HDOP at each gridpoint")
 for i in range(gridLon.shape[0]):
     print("progress:", i+1, "/", gridLon.shape[0])
     for j in range(gridLon.shape[1]):
@@ -150,32 +157,28 @@ for i in range(gridLon.shape[0]):
         lon = gridLon[i, j]
         userLlh = np.array([lat, lon, feetToMeters(10000)])
         userEcef = llhToEcef(userLlh)
-        availableDMEs = np.array([])
+        H = np.array([])
         # loop through DMEs in data list
         for row in range(len(data)):
             dmeLlh = np.array([data[row, 2], data[row, 3], 0])
             dmeEcef = llhToEcef(dmeLlh)
             dmeENU = ecefToEnu(dmeEcef, userEcef)
+            dmeENUUnitVector = dmeENU / np.linalg.norm(dmeENU)
             dmeRange = computeDmeRange(data[row, 4])
             # check if DME signal is received by user
             if distanceLlh(userLlh, dmeLlh) <= dmeRange:
-                if len(availableDMEs) == 0: availableDMEs = np.array([dmeENU])
-                else: availableDMEs = np.concatenate((availableDMEs, np.array([dmeENU])), axis=0)
+                if len(H) == 0: H = np.array([dmeENUUnitVector])
+                else: H = np.concatenate((H, np.array([dmeENUUnitVector])), axis=0)
 
-        if len(availableDMEs) >= 2:
+        if len(H) >= 3:
             # compute HDOP
-            H = np.zeros((len(availableDMEs)+1, 3))
-            for dme_measurement in range(H.shape[0]-1):
-                for dim in range(3):
-                    H[dme_measurement, dim] = availableDMEs[dme_measurement, dim] / distanceEcef([0, 0, 0], availableDMEs[dme_measurement])
-            H[-1, :] = [0, 0, -1] # TODO: leave this one out
 
-            covRho = np.diag(np.concatenate((np.repeat(sigma_dme*sigma_dme, len(availableDMEs)), [sigma_altimeter*sigma_altimeter])))
-            G = np.linalg.inv(H.T@H)@H.T@covRho@H@np.linalg.inv(H.T@H).T
+            # covRho = np.diag((np.repeat(sigma_dme*sigma_dme, len(H)))) # not needed to compute HDOP
+            G = np.linalg.inv(H.T@H).T
+            HDOP = math.sqrt(G[0, 0] + G[1, 1])
 
-            HDOP = math.sqrt(G[0, 0]/(sigma_dme*sigma_dme) + G[1, 1]/(sigma_dme*sigma_dme))
-            values[i, j] = HDOP
-            # print(HDOP)
+            if HDOP > 10: values[i, j] = np.nan
+            else: values[i, j] = HDOP
 
         else:
             # not enough DMEs received, report HDOP as 'not a number'
